@@ -393,7 +393,8 @@ if __name__ == "__main__":
             headers=headers_step5,
             data=data_step5,
             cookies=cookies_step5,
-            print_response_details=True # Show full response for this step
+            print_response_details=True, # Already set to show full response
+            allow_redirects=False        # Disable redirects for this step
         )
 
         if response_step5:
