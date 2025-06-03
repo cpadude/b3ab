@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import base64
 import json
+import streamlit as st
 
 # Suppress InsecureRequestWarning
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -22,7 +23,7 @@ def load_proxies(filename="proxies.txt"):
             for line in f:
                 proxies.append(line.strip())
     except FileNotFoundError:
-        print(f"Warning: {filename} not found. No proxies will be used.")
+        st.warning(f"Warning: {filename} not found. No proxies will be used.")
     return proxies
 
 proxies_list = load_proxies()
@@ -39,12 +40,12 @@ def get_random_proxy():
 
 def make_request(step_number, description, method, url, headers=None, data=None, json_data=None, params=None, cookies=None, allow_redirects=True, print_response_details=False):
     """Makes an HTTP request and prints details."""
-    print(f"--- Step {step_number}: {description} ---")
-    print(f"Request: {method.upper()} {url}")
+    st.subheader(f"--- Step {step_number}: {description} ---")
+    st.write(f"Request: {method.upper()} {url}")
 
     proxy = get_random_proxy()
     if proxy:
-        print(f"Using proxy: {proxy['http']}")
+        st.write(f"Using proxy: {proxy['http']}")
 
     try:
         response = session.request(
@@ -59,30 +60,31 @@ def make_request(step_number, description, method, url, headers=None, data=None,
             verify=False,  # Corresponds to curl's --insecure or -k
             allow_redirects=allow_redirects
         )
-        print(f"Status Code: {response.status_code}")
+        st.write(f"Status Code: {response.status_code}")
 
         if print_response_details:
-            print("Response Headers:")
-            for key, value in response.headers.items():
-                print(f"  {key}: {value}")
+            with st.expander("View Response Headers"):
+                st.json(dict(response.headers))
             
             # Try to print JSON response, otherwise print text
             try:
-                print("Response Body (JSON):")
-                print(response.json())
+                with st.expander("View Response Body (JSON)"):
+                    st.json(response.json())
             except requests.exceptions.JSONDecodeError:
-                print("Response Body (Text):")
-                print(response.text[:500] + "..." if len(response.text) > 500 else response.text) # Print first 500 chars
+                with st.expander("View Response Body (Text)"):
+                    st.text(response.text[:1000] + "..." if len(response.text) > 1000 else response.text)
 
         response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
         return response
 
     except requests.exceptions.RequestException as e:
-        print(f"Error during request: {e}")
+        st.error(f"Error during request: {e}")
         return None
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    st.title("cURL Request Processor")
+
     # Example of how to store a value (will be replaced by actual extraction logic)
     # stored_values["example_token"] = "extracted_token_value"
 
@@ -137,7 +139,7 @@ if __name__ == "__main__":
         if match:
             client_token = match.group(1)
             stored_values['client_token'] = client_token
-            print(f"Extracted client_token: {client_token}")
+            st.write(f"Extracted client_token: {client_token}")
 
             # Decode client_token and extract authorizationFingerprint
             try:
@@ -147,19 +149,20 @@ if __name__ == "__main__":
                 if 'authorizationFingerprint' in decoded_token_data:
                     auth_fingerprint = decoded_token_data['authorizationFingerprint']
                     stored_values['authorizationFingerprint'] = auth_fingerprint
-                    print(f"Extracted authorizationFingerprint: {auth_fingerprint}")
+                    st.write(f"Extracted authorizationFingerprint: {auth_fingerprint}")
                 else:
-                    print("authorizationFingerprint not found in decoded client_token.")
+                    st.warning("authorizationFingerprint not found in decoded client_token.")
             except Exception as e:
-                print(f"Error decoding client_token or extracting authorizationFingerprint: {e}")
+                st.error(f"Error decoding client_token or extracting authorizationFingerprint: {e}")
 
         else:
-            print("client_token not found in response for Step 2.")
-        print("Step 2: Processing completed.")
+            st.warning("client_token not found in response for Step 2.")
+        st.success("Step 2: Processing completed.")
     elif response_step2:
-        print("Step 2: Request successful but no text content in response.")
+        st.warning("Step 2: Request successful but no text content in response.")
     else:
-        print("Step 2: Failed.")
+        st.error("Step 2: Failed.")
+    st.markdown("---")
 
     # --- Request 3 ---
     if 'authorizationFingerprint' in stored_values:
@@ -207,11 +210,12 @@ if __name__ == "__main__":
 
         if response_step3:
             # Add any value extraction logic here if needed for future steps
-            print("Step 3: Successfully completed.")
+            st.success("Step 3: Successfully completed.")
         else:
-            print("Step 3: Failed.")
+            st.error("Step 3: Failed.")
     else:
-        print("Step 3: Skipped because authorizationFingerprint was not found in stored_values.")
+        st.warning("Step 3: Skipped because authorizationFingerprint was not found in stored_values.")
+    st.markdown("---")
 
     # --- Request 4 ---
     if 'authorizationFingerprint' in stored_values:
@@ -275,18 +279,19 @@ if __name__ == "__main__":
                 tokenized_card_token = response_json.get('data', {}).get('tokenizeCreditCard', {}).get('token')
                 if tokenized_card_token:
                     stored_values['card_token'] = tokenized_card_token
-                    print(f"Extracted card_token: {tokenized_card_token}")
+                    st.write(f"Extracted card_token: {tokenized_card_token}")
                 else:
-                    print("card_token not found in Step 4 response data.tokenizeCreditCard.token")
+                    st.warning("card_token not found in Step 4 response data.tokenizeCreditCard.token")
             except json.JSONDecodeError:
-                print("Error: Step 4 response was not valid JSON, cannot extract card_token.")
+                st.error("Error: Step 4 response was not valid JSON, cannot extract card_token.")
             except Exception as e:
-                print(f"Error extracting card_token from Step 4 response: {e}")
-            print("Step 4: Successfully completed.")
+                st.error(f"Error extracting card_token from Step 4 response: {e}")
+            st.success("Step 4: Successfully completed.")
         else:
-            print("Step 4: Failed.")
+            st.error("Step 4: Failed.")
     else:
-        print("Step 4: Skipped because authorizationFingerprint was not found in stored_values.")
+        st.warning("Step 4: Skipped because authorizationFingerprint was not found in stored_values.")
+    st.markdown("---")
 
     # --- Request 5 ---
     if 'card_token' in stored_values:
@@ -370,10 +375,11 @@ if __name__ == "__main__":
 
         if response_step5:
             # Add any value extraction logic here if needed
-            print("Step 5: Successfully completed.")
+            st.success("Step 5: Successfully completed.")
         else:
-            print("Step 5: Failed.")
+            st.error("Step 5: Failed.")
     else:
-        print("Step 5: Skipped because card_token was not found in stored_values.")
+        st.warning("Step 5: Skipped because card_token was not found in stored_values.")
+    st.markdown("---")
 
 # --- Request Definitions will be added below --- 
