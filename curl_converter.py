@@ -85,6 +85,31 @@ def make_request(step_number, description, method, url, headers=None, data=None,
 if __name__ == "__main__":
     st.title("cURL Request Processor")
 
+    # --- Read Card Details from URL --- 
+    card_details_from_url = None
+    raw_card_param = st.query_params.get("card")
+    if raw_card_param:
+        st.write(f"Received card parameter: {raw_card_param}")
+        parts = raw_card_param.split('|')
+        if len(parts) == 4:
+            cc, mm, yy_or_yyyy, cvv = parts
+            year = yy_or_yyyy
+            if len(yy_or_yyyy) == 2:
+                year = "20" + yy_or_yyyy # Convert yy to yyyy
+            
+            card_details_from_url = {
+                "number": cc,
+                "expirationMonth": mm,
+                "expirationYear": year,
+                "cvv": cvv
+            }
+            st.success("Successfully parsed card details from URL.")
+            st.write("Using the following card details for Step 4:", card_details_from_url)
+        else:
+            st.error("Invalid format for 'card' URL parameter. Expected cc|mm|yy_or_yyyy|cvv. Falling back to default card details for Step 4.")
+    else:
+        st.info("No 'card' URL parameter found. Using default card details for Step 4.")
+
     # Example of how to store a value (will be replaced by actual extraction logic)
     # stored_values["example_token"] = "extracted_token_value"
 
@@ -241,6 +266,16 @@ if __name__ == "__main__":
             # Connection header is typically managed by requests library
         }
 
+        # Use card details from URL if available, otherwise use hardcoded
+        current_card_details = {
+            "number": "4089119753861420", # Default
+            "expirationMonth": "12",       # Default
+            "expirationYear": "2025",      # Default
+            "cvv": "555"                  # Default
+        }
+        if card_details_from_url:
+            current_card_details = card_details_from_url
+
         json_payload_step4 = {
             "clientSdkMetadata": {
                 "source": "client",
@@ -250,12 +285,7 @@ if __name__ == "__main__":
             "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       cardholderName       expirationMonth      expirationYear      binData {         prepaid         healthcare         debit         durbinRegulated         commercial         payroll         issuingBank         countryOfIssuance         productId       }     }   } }",
             "variables": {
                 "input": {
-                    "creditCard": {
-                        "number": "4089119753861420",
-                        "expirationMonth": "12",
-                        "expirationYear": "2025",
-                        "cvv": "555"
-                    },
+                    "creditCard": current_card_details, # Using dynamic card details
                     "options": {"validate": False}
                 }
             },
