@@ -250,7 +250,7 @@ if __name__ == "__main__":
             'page': 'donation',
             'orig_akid': 'None',
             'ak-donate-step': '1',
-            'amount_other': '2',
+            'amount_other': '0.1',
             'donation_type': 'single',
             'first_name': 'Raju',
             'required': 'first_name',
